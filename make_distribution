@@ -1,0 +1,16 @@
+WORK=`pwd`
+cd ../game1-distribution
+DISTR=`pwd`
+cd $WORK
+version=`cat version.txt` 
+
+fname=game1-core_${version}.zip
+rm $DISTR/$fname
+zip $DISTR/$fname ./core/* 
+(cd doc; zip $DISTR/$fname ./README.txt)
+
+fname=game1-examples_${version}.zip
+rm $DISTR/$fname
+zip $DISTR/$fname ./core/*
+zip $DISTR/$fname `find ./examples`
+(cd doc; zip $DISTR/$fname ./README.txt)
