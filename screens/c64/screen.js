@@ -28,11 +28,18 @@ class C64Screen {
 
 	 constructor( rcanvasid, c64path, onload, onloaddata  ) {
 
-     var __this = this;
-     var font = new Image();
-     this.font = font;
-     this.onload = onload;
-     this.onloaddata = onloaddata;
+		  var __this = this;
+		  var font = new Image();
+		  this.font = font;
+		  this.onload = onload;
+		  this.onloaddata = onloaddata;
+
+ 		  this.vic = [];
+			this.vicUsed = [];
+
+			for( var i=0; i<47; i++) {
+				vic.push(0);
+			}
 
       font.onload = function ( evt ) {
         __this._postLoadFontImage();
@@ -57,8 +64,8 @@ class C64Screen {
 
 
 			this.border = {
-				w: 30,
-				h: 30
+				w: 64,
+				h: 32
 			}
 
 			this.WIDTH = 640;
@@ -132,6 +139,8 @@ class C64Screen {
 			map['&'] = 38;
 			map['\''] = 39;
 			map['\\'] = 77;
+			map['{'] = 0x73;
+			map['}'] = 0x6b;
 			map['('] = 40;
 			map[')'] = 41;
 
@@ -152,6 +161,8 @@ class C64Screen {
 			map['7'] = 55;
 			map['8'] = 56;
 		  map['9'] = 57;
+
+			map[' '] = 32;
 
 			map[':'] = 58;
 			map[';'] = 59;
@@ -212,6 +223,15 @@ class C64Screen {
 
 
    }
+
+	 vpoke( a, b ) {
+		 this.vic[a] = b;
+		 this.vicUsed.push( a );
+	 }
+
+	 vpeek( a ) {
+		 return this.vic[a];
+	 }
 
 	 reset( ) {
 			 this.rcontext.imageSmoothingEnabled= false;
@@ -385,9 +405,8 @@ class C64Screen {
 	 	}
 	 }
 
-
 	 scrollUp() {
-		 console.log("Scrolling not yet implemented");
+
 		 var buf = this.buffer;
 
 		 this.cursory=24;
@@ -395,8 +414,6 @@ class C64Screen {
 		 for( var y=0; y<24; y++) {
 			 buf[y] = buf[y + 1];
 		 }
-
-
 		var newrow = [];
 		for( var x=0; x<40; x++) {
 			newrow[ x ] = [32,14,true];
@@ -419,6 +436,26 @@ class C64Screen {
 			 this.cursory = 24;
 			 this.scrollUp();
 		 }
+	 }
+
+	 setChar( x, y, index ) {
+
+		var buf = this.buffer;
+		var chr = buf[y][x];
+
+		chr[2] = true;
+		chr[0] = index;
+
+	 }
+
+	 setCharCol( x, y, index ) {
+
+		var buf = this.buffer;
+		var chr = buf[y][x];
+
+		chr[2] = true;
+		chr[1] = index;
+
 	 }
 
 	 writeChar(  c ) {
@@ -474,6 +511,12 @@ class C64Screen {
 		 return line;
 	 }
 
+	 saveCursor( x ) {
+		 if( x < 0 ) {
+			 return (x+128)%256;
+		 }
+		 return x%256;
+	 }
 
 	 blinkCursor() {
 		var buf = this.buffer;
@@ -482,36 +525,57 @@ class C64Screen {
 			var index = 32+128;
 			buf[this.cursory][this.cursorx][2] = true;
 			buf[this.cursory][this.cursorx][1] = this.col;
-			buf[this.cursory][this.cursorx][0] = index;
+			buf[this.cursory][this.cursorx][0] = this.saveCursor(buf[this.cursory][this.cursorx][0] + 128);
 		}
 		else {
 			this.cursorOn = false;
 			var index = 32;
 			buf[this.cursory][this.cursorx][2] = true;
 			buf[this.cursory][this.cursorx][1] = this.col;
-			buf[this.cursory][this.cursorx][0] = index;
+			buf[this.cursory][this.cursorx][0] = this.saveCursor(buf[this.cursory][this.cursorx][0] - 128);
 		}
 
    }
 
 	 clearCursor() {
 		var buf = this.buffer;
-		this.cursorOn = true;
-		if( !this.cursorOn ) {
-			this.cursorOn = true;
-			var index = 32+128;
-			buf[this.cursory][this.cursorx][2] = true;
-			buf[this.cursory][this.cursorx][0] = index;
-		}
-		else {
-			this.cursorOn = false;
-			var index = 32;
-			buf[this.cursory][this.cursorx][2] = true;
-			buf[this.cursory][this.cursorx][0] = index;
-		}
-
+ 		if( this.cursorOn ) {
+ 			this.cursorOn = false;
+ 			var index = 32;
+ 			buf[this.cursory][this.cursorx][2] = true;
+ 			buf[this.cursory][this.cursorx][1] = this.col;
+ 			buf[this.cursory][this.cursorx][0] = this.saveCursor((buf[this.cursory][this.cursorx][0] - 128));
+ 		}
    }
 
+	 cursorX( x ) {
+		 this.cursorx = x;
+	 }
+
+	 cursorUp() {
+		 this.cursory--;
+		 if( this.cursory<0 ) { this.cursory = 0;}
+	 }
+
+	 cursorDown() {
+		 this.cursory++;
+		 if( this.cursory>24 ) { this.cursory = 24;}
+	 }
+
+	 cursorLeft() {
+		 this.cursorx--;
+		 if( this.cursorx<0 ) { this.cursorx = 0;}
+	 }
+
+	 cursorRight() {
+		 this.cursorx++;
+		 if( this.cursorx>39 ) { this.cursorx = 39;}
+	 }
+
+	 cursorHome() {
+		 this.cursorx=0;
+		 this.cursory=0;
+	 }
 
 	 writeString( str, newLine ) {
 		 for (var i = 0; i < str.length; i++) {
@@ -788,7 +852,16 @@ class C64BlockFont {
 
 
 	drawRaw( ctx, x, y, i ) {
-    ctx.drawImage( this.iconsCanvas[ i ], x, y );
+    try {
+			ctx.drawImage( this.iconsCanvas[ i ], x, y );
+		}
+		catch ( ex ) {
+			console.log( ex );
+			console.log( ctx );
+			console.log( x );
+			console.log( y );
+			console.log( i );
+		}
   }
 
 

@@ -528,6 +528,7 @@ class GameState {
         err.exception = except;
         err.myClass = myClass;
 
+        console.log( except );
         throw err;
       }
 
@@ -765,6 +766,7 @@ class Boot {
     var text2 = 'From ('+parts[0]+')';
 
     console.error( consoletext );
+    console.error( obj.exception );
     if( obj.exception.stack != undefined ) {
       console.log( obj.exception.stack );
       console.log( obj.myClass);

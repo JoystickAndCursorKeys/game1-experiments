@@ -1,3 +1,9 @@
+function evalInScope(js, contextAsScope) {
+  //# Return the results of the in-line anonymous function we .call with the passed context
+  return function() { with(this) { return eval(js); }; }.call(contextAsScope);
+}
+
+
 class Demo {
 
   constructor( console ) {
@@ -9,6 +15,7 @@ class Demo {
       235, 247, 215, 23, 213, 236, 47, 227, 244, 199, 255, 243, 3, 255, 224, 1, 255, 192, 0, 0, 0
 
     ]
+
   }
 
   initPlayBook( properties ) {
@@ -22,6 +29,9 @@ class Demo {
 
     p.m="\n***************************************\n\nThanks for watching.\nif you like this video\nplease like or subscribe\n\nif you have any ideas,\nfor this little project please comment\n\n***************************************\n";
     p.intro="¤\nlet's mix two worlds:\n\n   1.c64\n   2.javascript.\n\nwhy???\n\nwell......  why not :)\n\nhave fun watching!\n\n\b";
+    p._={}
+    p._.lastCol=14;
+
 
   }
 
@@ -68,18 +78,30 @@ class Demo {
     }
   }
 
-  executeCommand( c, cmd ) {
-    var w=40;
-    var h=20;
+  initExecuteCommand( c )
+  {
+    if( this.cmdInit ) {  return; }
+    this.cmdInit = true;
 
-    var cls=function() {c.clearScreen();};
-    var color=function(x) {c.setColor(x);};
-    var background=function(x) {c.setBGColor(x);};
-    var border=function(x) {c.setBorderColor(x);};
-    var cls=function() {c.clearScreen();};
-    var cls=function() {c.clearScreen();};
-    var spriteon=function(s,f) {c.spriteEnable( s, f );}
-    var print=function(s) {
+    var ctx = this.programContext;
+
+    ctx.col=14;
+    ctx._.lastCol=14;
+    ctx.bgcol=6;
+    ctx._.lastBGCol=6;
+    ctx.bcol=14;
+    ctx._.lastBorderCol=14;
+    ctx._.screen = c;
+
+    ctx.cls=function() {c.clearScreen();};
+    ctx.color=function(x) {console.log(c);console.log("col="+x);ctx._.screen.setColor(x);ctx._.lastCol=x;};
+    ctx.background=function(x) {c.setBGColor(x);ctx._.lastBGCol=x;};
+    ctx.border=function(x) {c.setBorderColor(x);ctx._.lastBorderCol=x;};
+    ctx.cls=function() {c.clearScreen();};
+    ctx.cls=function() {c.clearScreen();};
+    ctx.spriteon=function(s,f) {c.spriteEnable( s, f );}
+    ctx.print=function(s0) {
+        var s=s0+"";
         for( var i=0; i<s.length; i++) {
             if( s[i] == '\n' ) {
                 c.writeString("",true);
@@ -94,14 +116,39 @@ class Demo {
         }
 
       }
-    var math=Math;
-    var p=this.programContext;
+    ctx.math=Math;
+
+
+    //p=this.programContext;
+
+  }
+
+  executeCommand( c, cmd ) {
+
+    this.initExecuteCommand( c );
+
+    var w=40;
+    var h=20;
+
+    var ctx = this.programContext;
 
     try {
-      var result = eval(cmd);
-      console.log( result +"" );
+      var result = evalInScope(cmd, ctx);
+      console.log( ">>" + result  );
       if( result != undefined ) {
         c.writeString(result+"", true);
+      }
+
+
+      var _ = this.programContext._;
+      if( ctx.col != _.lastCol ) {
+        ctx.color(ctx.col);
+      }
+      else if( ctx.bgcol != _.lastBGCol ) {
+        ctx.background(ctx.bgcol);
+      }
+      else if( ctx.bcol != _.lastBorderCol ) {
+        ctx.border(ctx.bcol);
       }
     }
     catch (error) {
@@ -111,6 +158,8 @@ class Demo {
 
 
   }
+
+
 
   playHandle( evt ) {
     if( evt.type == 'keydown' ) {

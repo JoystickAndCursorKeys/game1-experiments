@@ -5,7 +5,18 @@ examples.push({
   path: null
 });
 
+
 examples.push({
-  name: "C64 Screen Emulation",
-  path: "examples/demos/c64screen"
+  name: "C64 Basic and more",
+  path: "examples/demos/w64"
+});
+
+examples.push({
+  name: "C64 Screen Emulation and Javascript",
+  path: "examples/demos/c64screenjs"
+});
+
+examples.push({
+  name: "C64 Screen Emulation and Javascript Calculator",
+  path: "examples/demos/c64calc"
 });
