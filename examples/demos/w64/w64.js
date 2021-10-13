@@ -67,6 +67,9 @@ class Program {
 
 
       }
+      else if( evt.key == "Pause" && evt.ctrlKey) {
+        this.basiccontext.reset();
+      }
       else if( evt.key == "Backspace") {
           c.clearCursor();
           c.deleteChar();

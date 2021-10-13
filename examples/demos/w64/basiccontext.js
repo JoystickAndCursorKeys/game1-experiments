@@ -11,18 +11,35 @@ class BasicContext {
     var c = this.console;
     this.commands = new BasicCommands( this );
     this.vars = [];
-    //this.reset();
+    this.saveCount = 0;
 
-    //this.autoLoad();
+    var json = localStorage.getItem('w64Settings');
+    this.settings = JSON.parse( json );
+    if(this.settings == null ) {
+      this.settings={ cookies: false };
+    }
+
   }
 
   poke_53280( v ) { this.console.setBorderColor( v % 16 );  }
   poke_53281( v ) { this.console.setBGColor( v % 16 );  }
+  vpoke(a,b) { this.console.vpoke( a - 53248,b%256  ); }
 
   poke( a, b ) {
       var addr = "poke_" + a;
       if( this[addr] ) {
         this[addr](b);
+      }
+      if( a>53247 && a<53295) {
+
+        this.console.vpoke( a - 53248,b%256  )
+/*       var v = a - 1024;
+        var y = Math.floor(v / 40);
+        var x = v%40;
+        var c = b%256;
+
+        this.console.setChar(x,y,c);
+*/
       }
       else if( a>1023 && a<2024) {
         var v = a - 1024;
@@ -57,6 +74,9 @@ class BasicContext {
 
   reset() {
     this.console.clearScreen();
+    this.vpoke(53280,14);
+    this.vpoke(53281,6);
+    this.vpoke(53269,0);
     this.printLine("");
     this.printLine(" **** commodore 64 basic emulator ****");
     this.printLine("");
@@ -154,12 +174,15 @@ class BasicContext {
       for( var cyc=0; cyc<5; cyc++) {
         var l = p[ this.runPointer ];
 
+        console.log("line:",l);
         this.runCommands( l[1] );
         if( !this.gotoFlag) {
           this.runPointer ++;
           if( this.runPointer >=  p.length ) {
+            console.log( "end program");
             this.runFlag = false;
             c.clearCursor();
+            break;
           }
         }
         else {
@@ -297,14 +320,29 @@ class BasicContext {
   save() {
     var myStorage = window.localStorage;
 
+    if( this.saveCount == 0 && this.settings.cookies == false) {
+      this.printLine("!warning");
+      this.printLine("!save will use cookies or local storage");
+      this.printLine("!type save again to agree");
+      this.saveCount++;
+
+      return;
+    }
+    console.log( "saving..." );
     console.log( this.program );
 
     localStorage.setItem('w64AutoSav', JSON.stringify( this.program ) );
+
+    if( this.saveCount == 1 && this.settings.cookies == false) {
+      this.settings.cookies = true;
+      localStorage.setItem('w64Settings', JSON.stringify( this.settings ) );
+    }
+    this.saveCount++;
+
   }
 
   load() {
     var json = localStorage.getItem('w64AutoSav');
-
     this.program = JSON.parse( json );
     if(this.program == null ) {
       this.program=[];

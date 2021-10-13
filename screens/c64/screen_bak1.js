@@ -37,9 +37,8 @@ class C64Screen {
  		  this.vic = [];
 			this.vicUsed = [];
 
-
 			for( var i=0; i<47; i++) {
-				this.vic.push(0);
+				vic.push(0);
 			}
 
       font.onload = function ( evt ) {
@@ -69,8 +68,8 @@ class C64Screen {
 				h: 32
 			}
 
-			this.WIDTH = 850.1;
-			this.HEIGHT = 600.1;
+			this.WIDTH = 640;
+			this.HEIGHT = 400;
 
 			this.FULLWIDTH = this.WIDTH + this.border.w * 2;
 			this.FULLHEIGHT = this.HEIGHT + this.border.h * 2;
@@ -79,7 +78,7 @@ class C64Screen {
       this.rcanvas.height=this.FULLHEIGHT;
 
 
-			this.context.imageSmoothingEnabled= true;
+			this.context.imageSmoothingEnabled= false;
 
 			this.colors = [];
 
@@ -183,20 +182,8 @@ class C64Screen {
 			this.backmap = backmap;
 			console.log( backmap );
 
-			this.spframes = [];
-			for( var t=0; t<128; t++ ) {
-				this.spframes[ t ] = new C64SpriteFrame();
-				this.spframes[ t ].init();
-				this.spframes[ t ].context.fillStyle = this._htmlColor( this.colors[ 1 ] );
-				this.spframes[ t ].context.fillRect(
-					0,0,
-					24,
-					21
-				);
-			}
-
-
 			this.sprites = [];
+
 			for( var i=0; i<8; i++ ) {
 
 				this.sprites[ i ] = new Object();
@@ -207,12 +194,20 @@ class C64Screen {
 				sp.context = sp.canvas.getContext('2d');
 				sp.canvas.width=24;
 				sp.canvas.height=21;
-
-				this.spriteCol(i,1);
-				this.spriteFrame(i,0);
-
 			}
 
+			this.spframes = [];
+
+			for( var t=0; t<128; t++ ) {
+				this.spframes[ t ] = new C64SpriteFrame();
+				this.spframes[ t ].init();
+				this.spframes[ t ].context.fillStyle = this._htmlColor( this.colors[ 1 ] );
+				this.spframes[ t ].context.fillRect(
+					0,0,
+					24,
+					21
+				);
+			}
 
 			this.pixel = this.context.createImageData(1,1);
 			this.pixeldata = this.pixel.data;
@@ -226,74 +221,11 @@ class C64Screen {
 			this.bcol = 14;
 			this.bcolLast = 14;
 
+
    }
 
-	 _getByteBits( byte ) {
-		 var masks = [
-			 0b00000001,0b00000010,0b00000100,0b00001000,
-			 0b00010000,0b00100000,0b01000000,0b10000000
-		 ];
-
-		var results = [ false, false, false, false, false, false, false, false ];
-
-		for( var i=0; i<8; i++) {
-
-			results[ i ] = (byte & masks[i]) > 0;
-
-		}
-
-		return results;
-	 }
-
-	 _intVpokesProcess() {
-		 if( this.vicUsed.length == 0) {
-			 return;
-		 }
-
-		 var vu = this.vicUsed;
-		 var vul = vu.length;
-
-		 for( var i=0; i<vul; i++ ) {
-			 var index = vu[ i ];
-			 var nr = index + 53248;
-			 var v = this.vic[ index ];
-			 if( nr == 53280)  {
-				 this.setBorderColor( v % 16 );
-			 }
-			 else if( nr == 53281)  {
-				 this.setBGColor( v % 16 );
-			 }
-			 else if( nr == 53269)  {
-				 var bits = this._getByteBits( v );
-				 var spr = this.sprites;
-				 for( var j=0; j<8; j++) {
-					 spr[ j ].enabled = bits[j];
-					 console.log("Sprite[" +j+"].enable=" + bits[j])
-				 }
-			 }
-			 else if( nr>53247 && nr < 53264 ) {
-				var sprno = Math.floor((nr -53248) / 2);
-				var xcoord = !(nr % 2);
-				console.log("sprite #" + sprno);
-				console.log("is xcoord " + xcoord);
-				console.log("coord #" + v);
-
-				if( xcoord ) {
-					this.spriteXPos( sprno, v );
-				}
-				else {
-					this.spriteYPos( sprno, v );
-				}
-
-			 }
-
-		 }
-
-		 this.vicUsed = [];
-	 }
-
 	 vpoke( a, b ) {
-		 this.vic[a] = b % 256;
+		 this.vic[a] = b;
 		 this.vicUsed.push( a );
 	 }
 
@@ -302,7 +234,7 @@ class C64Screen {
 	 }
 
 	 reset( ) {
-			 this.rcontext.imageSmoothingEnabled= true;
+			 this.rcontext.imageSmoothingEnabled= false;
 	 }
 
 	 _postLoadFontImage() {
@@ -385,17 +317,6 @@ class C64Screen {
  	 spriteEnable( n, enabled ) {
  		 this.sprites[ n ].enabled = enabled;
  	 }
-
-
-	 spriteXPos( n, x ) {
- 		 this.sprites[ n ].x = x;
-		 console.log("sprite.x " + n + " = " +x);
-		 console.log(this.sprites[ n ]);
- 	 }
-
-	 spriteYPos( n, y ) {
-		 this.sprites[ n ].y = y;
-	 }
 
  	 spritePos( n, x, y ) {
  		 this.sprites[ n ].x = x;
@@ -695,12 +616,11 @@ class C64Screen {
 
 	 renderDisplay( ) {
 
-		 this._intVpokesProcess();
-
 		 if( this.bcolLast != this.bcol ) {
 
 			 this._updateBorder();
 		 }
+
 
 		 this._renderBuffer();
 		 this._updateDisplay();
@@ -786,7 +706,7 @@ class C64Screen {
 			 var sp = this.sprites[ i ];
 				 if( sp.enabled ) {
 
-					//console.log( "Draw sprite " + i,sp.x,sp.y);
+					//console.log( "Draw sprite " + i);
 				 	bufctx.drawImage( sp.canvas, sp.x-24, sp.y-21 );
 			 }
 		 }
