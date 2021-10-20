@@ -12,12 +12,27 @@ class BasicContext {
     this.commands = new BasicCommands( this );
     this.vars = [];
     this.saveCount = 0;
+    this.kbBuffer = [];
 
     var json = localStorage.getItem('w64Settings');
     this.settings = JSON.parse( json );
     if(this.settings == null ) {
       this.settings={ cookies: false };
     }
+
+    this.code2colMap = [];
+    var km = this.code2colMap;
+
+    km[0x90] = 0;
+    km[0x05] = 1;
+    km[0x1c] = 2;
+    km[0x9f] = 3;
+    km[0x9c] = 4;
+    km[0x1e] = 5;
+    km[0x1f] = 6;
+    km[0x9e] = 7;
+    km[0x81] = 8;
+
 
   }
 
@@ -33,13 +48,7 @@ class BasicContext {
       if( a>53247 && a<53295) {
 
         this.console.vpoke( a - 53248,b%256  )
-/*       var v = a - 1024;
-        var y = Math.floor(v / 40);
-        var x = v%40;
-        var c = b%256;
 
-        this.console.setChar(x,y,c);
-*/
       }
       else if( a>1023 && a<2024) {
         var v = a - 1024;
@@ -55,8 +64,21 @@ class BasicContext {
         var x = v%40;
         var c = b%256;
 
-        this.console.setCharCol(x,y,c);
+        this.console.setCharCol(x,y,c%16);
       }
+  }
+
+  pushKeyBuffer( k ) {
+    this.kbBuffer.push( k );
+  }
+
+  pullKeyBuffer( k ) {
+    if( this.kbBuffer.length > 0 ) {
+
+      return this.kbBuffer.shift();
+
+    }
+    return -1;
   }
 
   printError( s ) {
@@ -64,7 +86,38 @@ class BasicContext {
   }
 
   printLine( s ) {
-    this.console.writeString( s, true );
+    this.sendChars(s, true);
+
+  }
+
+
+  sendChars( s, newline ) {
+
+    for( var i=0; i< s.length; i++) {
+      var c=s.charCodeAt( i );
+      if( c<32 || c>128) {
+        var col = this.code2colMap[ c ];
+        if( !(col===undefined)) {
+          this.console.setColor(col);
+        }
+        else if( c==0x12 ) {
+          //this.console.setColor(8); Set reverse
+        }
+        else if( c==0x13 ) {
+          this.console.cursorHome();
+        }
+        else if( c==0x93 ) {
+          this.console.clearScreen()
+        }
+      }
+      else {
+        this.console.writeChar( s.charAt( i ) );
+      }
+    }
+
+    if( newline ) {
+      this.console.writeString( "", true );
+    }
   }
 
   setCursXPos( p ) {
@@ -72,16 +125,20 @@ class BasicContext {
     this.console.cursorX( p );
   }
 
-  reset() {
+  reset( hard ) {
     this.console.clearScreen();
     this.vpoke(53280,14);
     this.vpoke(53281,6);
     this.vpoke(53269,0);
+    this.console.setColor(14);
+
     this.printLine("");
-    this.printLine(" **** commodore 64 basic emulator ****");
-    this.printLine("");
-    this.printLine("  **** javascript implementation ****");
-    this.printLine("");
+    if( hard ) {
+      this.printLine(" **** commodore 64 basic emulator ****");
+      this.printLine("");
+      this.printLine("  **** javascript implementation ****");
+      this.printLine("");
+    }
     this.printLine("ready.");
   }
 
@@ -174,7 +231,7 @@ class BasicContext {
       for( var cyc=0; cyc<5; cyc++) {
         var l = p[ this.runPointer ];
 
-        console.log("line:",l);
+        //console.log("line:",l);
         this.runCommands( l[1] );
         if( !this.gotoFlag) {
           this.runPointer ++;
@@ -182,6 +239,7 @@ class BasicContext {
             console.log( "end program");
             this.runFlag = false;
             c.clearCursor();
+            this.printLine("ready.");
             break;
           }
         }
@@ -192,8 +250,6 @@ class BasicContext {
     }
 
   }
-
-
 
   goto( line ) {
     var pgm = this.program;
@@ -222,6 +278,9 @@ class BasicContext {
     }
   }
 
+  isRunning() {
+    return this.runFlag;
+  }
 
   runPGM() {
     var c = this.console;
@@ -233,8 +292,45 @@ class BasicContext {
     }
   }
 
+  doIf( a,b,comp,block ) {
+
+    if( comp == "=" ) {
+      if( this.evalExpression(a) == this.evalExpression(b) ) {
+        this.runCommands( block );
+      }
+    }
+    else if( comp == "<" ) {
+      if( this.evalExpression(a) < this.evalExpression(b) ) {
+        this.runCommands( block );
+      }
+    }
+    else if( comp == ">" ) {
+      if( this.evalExpression(a) > this.evalExpression(b) ) {
+        this.runCommands( block );
+      }
+    }
+    else if( comp == "<=" ) {
+      if( this.evalExpression(a) <= this.evalExpression(b) ) {
+        this.runCommands( block );
+      }
+    }
+    else if( comp == ">=" ) {
+      if( this.evalExpression(a) >= this.evalExpression(b) ) {
+        this.runCommands( block );
+      }
+    }
+    else if( comp == "<>" ) {
+      if( this.evalExpression(a) != this.evalExpression(b) ) {
+        this.runCommands( block );
+      }
+    }
+
+  }
+
+
   runCommands( cmds ) {
     var commands = this.commands;
+    var EXPR = 0, PAR = 1;
 
     for( var i=0; i<cmds.length; i++) {
       var cmd=cmds[i];
@@ -243,12 +339,32 @@ class BasicContext {
         if( cn == "goto" ) {
           this.goto( cmd.params[0] );
         }
+        else if( cn == "if" ) {
+          this.doIf( cmd.params[0], cmd.params[1], cmd.comp, cmd.block );
+        }
       }
       else if( cmd.type == "call" )  {
         var values = [];
+        var pardefs = [];
+
+        var intf = commands[ "_if_" + cmd.statementName];
+        if( !( intf === undefined ) ) {
+            pardefs = commands[ "_if_" + cmd.statementName]();
+        }
+        else {
+          for( var j=0; j<cmd.params.length; j++) {
+            pardefs[j] = EXPR;
+          }
+        }
+
         for( var j=0; j<cmd.params.length; j++) {
-          var p = this.evalExpression( cmd.params[j] );;
-          values.push( p );
+          if( pardefs[j] == EXPR ) {
+            var p = this.evalExpression( cmd.params[j] );;
+            values.push( { type: "value", value: p } );
+          }
+          else {
+            values.push( { type: "var", value: cmd.params[0].parts[0].data } );
+          }
         }
         try {
           var stc = commands[ cmd.statementName];
@@ -273,6 +389,10 @@ class BasicContext {
         //console.log("VAR("+cmd.var+")=" + this.vars[ cmd.var ]);
       }
     }
+  }
+
+  setVar( a, b ) {
+    this.vars[ a ] = b;
   }
 
   insertPgmLine( linenr, commands, raw ) {
@@ -316,9 +436,66 @@ class BasicContext {
     //this.autoSave();
   }
 
+  getDir() {
+    var storageName =  "w64AutoSav_dir";
+    var json = localStorage.getItem( storageName );
+    var dir = JSON.parse( json );
 
-  save() {
+    if(!json) {
+      return {files:[], title: "0 \"VDisk          \" 00 2A" };
+    }
+
+    return dir;
+
+  }
+
+  setDir( dir ) {
+    var storageName =  "w64AutoSav_dir";
+
+    localStorage.setItem(storageName, JSON.stringify( dir ) );
+
+  }
+
+
+  loadDir() {
+    var dir = this.getDir();
+
+    this.program=[];
+    this.program.push([null,null,dir.title]);
+    for( var i=0; i<dir.files.length; i++) {
+
+      var row = dir.files[i].size +"     \"" + dir.files[i].fname + "\"";
+      this.program.push([null,null,row]);
+    }
+
+    var tmp=2;
+
+  }
+
+
+  updateDir( fileName, programLen ) {
+    var dir = this.getDir();
+
+    var found = -1;
+    for( var i=0; i<dir.files.length; i++) {
+      if( dir.files[i].fname == fileName ) {
+        found  = i;
+        break;
+      }
+    }
+
+    if( found > -1 ) {
+      dir.files[i].size = programLen;
+    }
+    else {
+      dir.files.push( {fname: fileName, size: programLen } );
+    }
+    this.setDir(dir);
+  }
+
+  save( fileName0 ) {
     var myStorage = window.localStorage;
+    var fileName = "default.prg";
 
     if( this.saveCount == 0 && this.settings.cookies == false) {
       this.printLine("!warning");
@@ -331,8 +508,19 @@ class BasicContext {
     console.log( "saving..." );
     console.log( this.program );
 
-    localStorage.setItem('w64AutoSav', JSON.stringify( this.program ) );
 
+    if( fileName0 ) {
+      fileName = fileName0;
+    }
+
+    var storageName = 'w64AutoSav_'+fileName;
+
+    //save pgm
+    localStorage.setItem(storageName, JSON.stringify( this.program ) );
+
+    this.updateDir( fileName, this.program.length );
+
+    //save settings
     if( this.saveCount == 1 && this.settings.cookies == false) {
       this.settings.cookies = true;
       localStorage.setItem('w64Settings', JSON.stringify( this.settings ) );
@@ -341,11 +529,26 @@ class BasicContext {
 
   }
 
-  load() {
-    var json = localStorage.getItem('w64AutoSav');
+  load( fileName ) {
+
+    if( fileName == "$" ) {
+      this.loadDir();
+      return true;
+    }
+    else if( fileName == "*" ) {
+      return this.load( null );
+    }
+
+    var storageName = 'w64AutoSav_default.prg';
+    if( fileName ) {
+      storageName =  "w64AutoSav_" + fileName;
+    }
+
+    var json = localStorage.getItem( storageName );
     this.program = JSON.parse( json );
-    if(this.program == null ) {
+    if( json == null ) {
       this.program=[];
+      return false;
     }
     var p = this.program;
     for( var i=0; i<p.length; i++) {
@@ -353,6 +556,7 @@ class BasicContext {
         delete p[i];
       }
     }
+    return true;
   }
 
 
@@ -374,7 +578,9 @@ class BasicContext {
     }
     else {
       this.runCommands( l.commands );
-      this.printLine("ready.");
+      if( ! this.runFlag ) {
+        this.printLine("ready.");
+      }
 
     }
 

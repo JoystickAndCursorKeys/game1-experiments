@@ -112,6 +112,12 @@ class Parser {
          },
        "input": { parse: 'parseInput' },
      };
+
+     this.screenCodes2CTRLTable = [];
+     var tab = this.screenCodes2CTRLTable;
+
+     tab['\x93'] = '\x13';
+     tab['\xd3'] = '\x93';
   }
 
   Exception( ctx, x ) {
@@ -119,6 +125,55 @@ class Parser {
     console.log(" Exception " + x + " at line " + ctx.lineNumber);
     throw x + " at line " + ctx.lineNumber;
   }
+
+/*
+  screenCode2CTRLChar( c ) {
+    var c2 = null;
+    console.log(c.charCodeAt(0));
+    c2 = this.screenCodes2CTRLTable[ c ];
+    if( !(c2 === undefined )) {
+      console.log("->"+c2)
+      return c2;
+    }
+
+    return c;
+  }
+
+  screenCodes2CTRLChars( str ) {
+    var str2 = "";
+
+    for( 	var i=0;
+          i<str.length;
+          i++)
+    {
+      var c = str.charAt(i);
+
+      var c2 = this.screenCode2CTRLChar( c );
+      str2 += c2;
+    }
+
+    return str2;
+  }
+
+  handleStringsCTRLChars( tokens ) {
+
+		for( 	var i=0;
+					i<tokens.length;
+					i++)
+		{
+			var token = tokens[i];
+
+			if( token ) {
+				if( token.type == "str" ) {
+					token.data = this.screenCodes2CTRLChars( token.data );
+				}
+			}
+
+		}
+
+    return tokens;
+  }
+*/
 
 	removePadding( tokens ) {
 		var tokens2 = [];
@@ -136,6 +191,49 @@ class Parser {
 			}
 
 		}
+
+		return tokens2;
+	}
+
+  mergeCompTokens( tokens ) {
+		var tokens2 = [];
+
+		for( 	var i=0;
+					i<tokens.length;
+					i++)
+		{
+			var token = tokens[i];
+
+			if( i>0 ) {
+        var token2 = tokens[i-1];
+				if( ( token.type == "comp" || token.type == "eq" ) &&
+            ( token2.type == "comp" || token2.type == "eq" ) ) {
+					token2.type = "@@removeme";
+          token.data = token2.data + token.data;
+          token.type = "comp";
+          if( token.data == "><" ) {
+            token.data = "<>";
+          }
+          else if( token.data == "=<" ) {
+            token.data = "<=";
+          }
+          else if( token.data == "=>" ) {
+            token.data = ">=";
+          }
+
+  			}
+			}
+
+		}
+
+    for( 	var i=0;
+					i<tokens.length;
+					i++)
+		{
+      if( tokens[i].type!="@@removeme") {
+        tokens2.push( tokens[i] );
+      }
+    }
 
 		return tokens2;
 	}
@@ -328,8 +426,9 @@ class Parser {
 						}
 				}
 				else {
-					this.Exception( context, "expected number, not " + token.data);
+					this.Exception( context, "expected number, string, symbol or '(', not " + token.data);
 				}
+        op = null;
 			}
 			else {
 
@@ -344,6 +443,11 @@ class Parser {
 			}
 			even = !even;
 		}
+
+    if( op != null ) {
+      part = { type: "uniop", data: null, op: op };
+      parts.push ( part );
+    }
 
 		if( expression.parts == null ) {
 			return null;
@@ -362,10 +466,8 @@ class Parser {
 	parseLineCommands( context ) {
 
 
-		context.tokens = this.removePadding( context.tokens );
-
 		var tokens = context.tokens;
-		var commands = context.commands;
+		var commands = [];
 
 		var i=1;
 		while( true ) {
@@ -385,7 +487,7 @@ class Parser {
 			}
 
 			if( token.type != "name" ) {
-				this.Exception( context, "Unexpected token, expected symbolname, got " + toke.type);
+				this.Exception( context, "Unexpected token, expected symbolname, got " + token.type + "/" + token.name) ;
 			}
 
 			var nameToken = token.data;
@@ -442,6 +544,42 @@ class Parser {
             commands.push( command );
 
           }
+          else if( command.controlKW == "if") {
+
+            var expr1, expr2, comp;
+            var endTokens = [];
+            endTokens.push( { type: "eq", data: "=" });
+            endTokens.push( { type: "comp", data: "<" });
+            endTokens.push( { type: "comp", data: ">" });
+            endTokens.push( { type: "comp", data: ">=" });
+            endTokens.push( { type: "comp", data: "<=" });
+            endTokens.push( { type: "comp", data: "<>" });
+
+						var expr1 = this.parseExpression( context, endTokens );
+
+            token = tokens.shift();
+            if( token.type != "eq" && token.type != "comp" ) {
+              this.Exception( context, "If expects expr [comp|eq] expr, no expr found, found " + token.type+"/"+token.data);
+            }
+            comp = token.data;
+
+            endTokens = [];
+            endTokens.push( { type: "name", data: "then" });
+
+            var expr2 = this.parseExpression( context, endTokens );
+            token = tokens.shift();
+
+            command.params=[];
+            command.params[0] = expr1;
+            command.params[1] = expr2;
+            command.comp = comp;
+
+
+            command.block = this.parseLineCommands( context );
+
+            commands.push( command );
+
+          }
           else {
             this.Exception( context, command.controlKW + " not implemented");
           }
@@ -468,6 +606,8 @@ class Parser {
 						endTokens.push( { type: "cmdsep", data: "@@@all" });
 
 						var expression = this.parseExpression( context, endTokens );
+            console.log( expression );
+
 						if( expression != null ) {
 							command.params.push( expression );
 
@@ -506,8 +646,27 @@ class Parser {
 
 
 		}
-
+    return commands;
 	}
+
+  logTokens( tokens ) {
+    var tokensStr = "";
+    for( var i=0; i<tokens.length; i++) {
+      var tok = tokens[i];
+      var tokStr = tok.type + ":" + tok.data;
+      if( tokensStr != "" ) {
+        tokensStr += ", ";
+      }
+      tokensStr += tokStr;
+    }
+
+    console.log( tokensStr );
+
+    for( var i=0; i<tokens.length; i++) {
+      var tok = tokens[i];
+      console.log("token: ",tok);
+    }
+  }
 
   parseLine( line ) {
 
@@ -519,6 +678,10 @@ class Parser {
 		var toker = new Tokenizer( new StringReader ( line ) );
 		var tokens = toker.tokenize();
     tokens = this.removePadding( tokens );
+    tokens = this.mergeCompTokens( tokens );
+    //tokens = this.handleStringsCTRLChars( tokens );
+
+    this.logTokens( tokens );
 
 
     if( tokens.length == 0 ) {
@@ -532,18 +695,18 @@ class Parser {
 
 		var context = {
       tokens: tokens,
-      commands: [],
       lineNumber: lineRecord.lineNumber
     }
 
-    this.parseLineCommands( context );
-    lineRecord.commands = context.commands;
+    //context.tokens = this.removePadding( context.tokens );
+    var commands = this.parseLineCommands( context );
+    lineRecord.commands = commands;
     lineRecord.raw = line;
     return lineRecord;
 
   }
 
-  parseLineToContext( context ) {
+  /*parseLineToContext( context ) {
 
 		var toker = new Tokenizer( new StringReader ( context.line ) );
 		var tokens = toker.tokenize();
@@ -571,9 +734,9 @@ class Parser {
 		context.tokens = tokens;
 		this.parseLineCommands( context );
 
-  }
+  }*/
 
-  parse( code ) {
+  /*parse( code ) {
 
     this.init();
 
@@ -613,5 +776,6 @@ class Parser {
     }
 
     return context;
-  }
+  }*/
+
 }

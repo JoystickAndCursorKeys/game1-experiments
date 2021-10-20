@@ -6,26 +6,16 @@ class BasicCommands {
     this.cmds = {};
     this.func = {};
 
-/*
-    this.pushCmd( "list", { paramCount: 0, param: [] } );
-    this.pushCmd( "run", { paramCount: 0, param: [] } );
-    this.pushCmd( "print", { paramCount: 1, param: [] } );
-    this.pushCmd( "new", { paramCount: 1, param: [] } );
-    this.pushCmd( "load", { paramCount: 1, param: [] } );
-    this.pushCmd( "save", { paramCount: 1, param: [] } );
-
-    this.pushCmd( "len", { paramCount: 1, param: [] } );
-    this.pushCmd( "sin", { paramCount: 1, param: [] } );
-*/
   }
 
-  pushCmd( cmd, def ) {
+  /*pushCmd( cmd, def ) {
     this.cmds[cmd] = def;
   }
 
   pushFunc( cmd, def ) {
     this.func[cmd] = def;
   }
+  */
 
   /* commands */
   new( pars ) {
@@ -41,20 +31,67 @@ class BasicCommands {
       }
   }
 
+
+  _if_get() {
+      var EXPR = 0, PAR = 1;
+      return [PAR];
+  }
+
+  get( pars ) {
+    var p0 = pars[ 0 ];
+    if( p0.type != "var" ) {
+      throw "GET: Param 0 is not a var";
+    }
+
+    var k = this.context.pullKeyBuffer();
+    if( k<0 ) { this.context.setVar(p0.value, ""); }
+    else { this.context.setVar(p0.value, String.fromCharCode( k ) ); }
+
+
+  }
+
   load( pars ) {
     var context = this.context;
+    var result;
 
-    context.load();
+    if( pars.length == 0) {
+        result = context.load( false );
+    }
+    else {
+      result = context.load( pars[0].value );
+    }
+
     context.printLine("");
-    context.printLine("searching");
-    context.printLine("found default.prg");
-    context.printLine("loading");
+
+
+    if( result ) {
+      if( pars.length == 0) {
+        context.printLine("searching");
+        context.printLine("found default.prg");
+      }
+      else {
+        context.printLine("searching for " + pars[0].value);
+        context.printLine("found "+pars[0].value);
+      }
+      context.printLine("loading");
+
+    }
+    else  {
+      context.printLine("?not found error");
+    }
+
+
   }
 
   save( pars ) {
     var context = this.context;
 
-    context.save();
+    if( pars.length == 0) {
+        context.save( false );
+    }
+    else {
+      context.save( pars[0].value );
+    }
   }
 
 
@@ -65,34 +102,35 @@ class BasicCommands {
   }
 
   print( pars ) {
+    console.log(pars);
     var context = this.context;
 
     if( pars.length != 0 ) {
-        context.printLine( "" + pars[0] );
+        context.sendChars( "" + pars[0].value, true );
     }
     else {
-      context.printLine( "" );
+      context.sendChars( "", true );
     }
   }
 
   poke( pars ) {
 
     var context = this.context;
-    context.poke( pars[0], pars[1]);
+    context.poke( pars[0].value, pars[1].value);
 
   }
 
   /* functions */
   len( pars ) {
-    return pars[0].length;
+    return pars[0].value.length;
   }
 
   val( pars ) {
-    return parseInt( pars[0] );
+    return parseInt( pars[0].value );
   }
 
   exp( pars ) {
-    return Math.exp( pars[0] );
+    return Math.exp( pars[0].value );
   }
 
   rnd( pars ) {
@@ -100,24 +138,24 @@ class BasicCommands {
   }
 
   sqr( pars ) {
-    return Math.sqrt( pars[0]);
+    return Math.sqrt( pars[0].value);
   }
 
   log( pars ) {
-    return Math.log( pars[0]);
+    return Math.log( pars[0].value);
   }
 
   sin( pars ) {
-    return Math.sin( pars[0]);
+    return Math.sin( pars[0].value);
   }
 
   cos( pars ) {
-    return Math.cos( pars[0]);
+    return Math.cos( pars[0].value);
   }
 
   spc( pars ) {
     var out="";
-    for( var i=0; i<pars[0]; i++) {
+    for( var i=0; i<pars[0].value; i++) {
       out+=" ";
     }
     return out;
@@ -125,7 +163,7 @@ class BasicCommands {
 
 
 
-  max(x,m) {
+  _max(x,m) {
     if( x<m ) {  return x; }
     return m;
   }
@@ -135,17 +173,17 @@ class BasicCommands {
   }
 
   int( pars ) {
-    return Math.floor( pars[0] );
+    return Math.floor( pars[0].value );
   }
 
   tab( pars ) {
     var context = this.context;
-    context.setCursXPos( max( pars[0], 39) );
+    context.setCursXPos( _max( pars[0].value, 39) );
     return "";
   }
 
   sgn( pars ) {
-    var x = pars[0];
+    var x = pars[0].value;
 
     if( x<0 ) { return -1; }
     else if( x>0 ) { return 1; }

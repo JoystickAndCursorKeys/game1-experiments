@@ -69,8 +69,8 @@ class C64Screen {
 				h: 32
 			}
 
-			this.WIDTH = 850.1;
-			this.HEIGHT = 600.1;
+			this.WIDTH = 960;
+			this.HEIGHT = 600;
 
 			this.FULLWIDTH = this.WIDTH + this.border.w * 2;
 			this.FULLHEIGHT = this.HEIGHT + this.border.h * 2;
@@ -79,7 +79,7 @@ class C64Screen {
       this.rcanvas.height=this.FULLHEIGHT;
 
 
-			this.context.imageSmoothingEnabled= true;
+			this.context.imageSmoothingEnabled= false;
 
 			this.colors = [];
 
@@ -101,6 +101,24 @@ class C64Screen {
 			this.colors[ 15 ] = { r:187, g:187, b:187 };
 
 			var map = [];
+
+			//map['REV'] = 146;
+			//map['HOM'] = 147;
+
+			for( var i=0 ; i<32; i++ ) {
+				map[String.fromCharCode(i)] = 128+i;
+			}
+
+			for( var i=128 ; i<160; i++ ) {
+				console.log("i["+i+"]=" + (64+i));
+				map[String.fromCharCode(i)] = 64+i;
+			}
+/*			map[String.fromCharCode(5)] = 133;
+			map[String.fromCharCode(13)] = 141;
+			map[String.fromCharCode(17)] = 145;
+			map[String.fromCharCode(19)] = 147;
+			map[String.fromCharCode(147)] = 211;
+			*/
 
 			map['@'] = 0;
 			map['a'] = 1;
@@ -302,7 +320,7 @@ class C64Screen {
 	 }
 
 	 reset( ) {
-			 this.rcontext.imageSmoothingEnabled= true;
+			 this.rcontext.imageSmoothingEnabled= false;
 	 }
 
 	 _postLoadFontImage() {
@@ -537,59 +555,6 @@ class C64Screen {
 
 	 }
 
-	 writeChar(  c ) {
-    var index = this._mapChar( c );
-		var buf = this.buffer;
- 		if( index > -1 ) {
-			buf[this.cursory][this.cursorx][2] = true;
-			buf[this.cursory][this.cursorx][1] = this.col;
-			buf[this.cursory][this.cursorx][0] = index;
- 		}
-		this.cursorx++;
-		if(this.cursorx > 39) {
-			this.cursorx = 0;
-			this.nextLine();
-
-		}
-   }
-
-
-	 deleteChar() {
-    var index = 32;
-		var buf = this.buffer;
-
-		this.cursorx--;
-		if(this.cursorx <0 ) {
-			this.cursorx = 39;
-
-			this.cursory--;
-			if(this.cursory <0 ) {
-				this.cursory = 0;
-				this.cursorx = 0;
-			}
-
-		}
-
-		buf[this.cursory][this.cursorx][2] = true;
-		buf[this.cursory][this.cursorx][0] = index;
-
-   }
-
-
-	 getCurrentLine() {
-		 var line;
-		 var buf = this.buffer;
-
-		 line = "";
-
-		 for( var x=0; x<39; x++) {
-			 var c=this.backmap[ buf[this.cursory][x][0] ];
-			 if( !c ) { c=" "};
-			 line = line + c;
-		 }
-		 return line;
-	 }
-
 	 saveCursor( x ) {
 		 if( x < 0 ) {
 			 return (x+128)%256;
@@ -655,6 +620,81 @@ class C64Screen {
 		 this.cursorx=0;
 		 this.cursory=0;
 	 }
+
+	 writePetsciiChar( c ) {
+		 var index = c.charCodeAt(0);
+		 if( index < 0 || index >255) { index = 0;}
+
+		 var buf = this.buffer;
+  		if( index > -1 ) {
+ 			buf[this.cursory][this.cursorx][2] = true;
+ 			buf[this.cursory][this.cursorx][1] = this.col;
+ 			buf[this.cursory][this.cursorx][0] = index;
+  		}
+ 		this.cursorx++;
+ 		if(this.cursorx > 39) {
+ 			this.cursorx = 0;
+ 			this.nextLine();
+
+ 		}
+
+	 }
+
+	 writeChar(  c ) {
+
+    var index = this._mapChar( c );
+
+		var buf = this.buffer;
+ 		if( index > -1 ) {
+			buf[this.cursory][this.cursorx][2] = true;
+			buf[this.cursory][this.cursorx][1] = this.col;
+			buf[this.cursory][this.cursorx][0] = index;
+ 		}
+		this.cursorx++;
+		if(this.cursorx > 39) {
+			this.cursorx = 0;
+			this.nextLine();
+		}
+   }
+
+
+	 deleteChar() {
+    var index = 32;
+		var buf = this.buffer;
+
+		this.cursorx--;
+		if(this.cursorx <0 ) {
+			this.cursorx = 39;
+
+			this.cursory--;
+			if(this.cursory <0 ) {
+				this.cursory = 0;
+				this.cursorx = 0;
+			}
+
+		}
+
+		buf[this.cursory][this.cursorx][2] = true;
+		buf[this.cursory][this.cursorx][0] = index;
+
+   }
+
+
+	 getCurrentLine() {
+		 var line;
+		 var buf = this.buffer;
+
+		 line = "";
+
+		 for( var x=0; x<39; x++) {
+			 var c=this.backmap[ buf[this.cursory][x][0] ];
+			 if( !c ) { c=" "};
+			 line = line + c;
+		 }
+		 return line;
+	 }
+
+
 
 	 writeString( str, newLine ) {
 		 for (var i = 0; i < str.length; i++) {

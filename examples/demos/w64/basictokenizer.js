@@ -61,24 +61,16 @@ class Tokenizer {
 
 
 	isNameChar( ctx  ) {
-		return ctx.c.match("[a-zA-Z0-9$?]") != null;
+		if( this.endFound ) {
+			return false;
+		}
+		var rv = ctx.c.match("[a-zA-Z0-9$?]") != null;
 
-		/*
-				var ok = ctx.c.match("[a-zA-Z0-9$]") != null;
-				if( !ok ) { return false; }
+		if( ctx.c=="$" ) {
+			ctx.endFound = true;
+		}
 
-				if( ctx.prevC === undefined ) {
-					ctx.prevC = ctx.c;
-					return true;
-				}
-
-				if( ctx.prevC == "$" ) {
-					return false;
-				}
-
-				ctx.prevC = ctx.c;
-				return true;
-		*/
+		return rv;
 	}
 
 	isNumChar( ctx  ) {
